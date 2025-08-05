@@ -34,19 +34,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await store.async_save({"tracking_ids": tracking_ids})
 
     async def handle_add(call: ServiceCall):
-        _LOGGER.info(f"Adding DHL tracking ID: {call.data['tracking_id']}")
         await modify_tracking_ids(True, call.data["tracking_id"])
 
     async def handle_remove(call: ServiceCall):
-        _LOGGER.info(f"Removing DHL tracking ID: {call.data['tracking_id']}")
         await modify_tracking_ids(False, call.data["tracking_id"])
 
     hass.services.async_register(DOMAIN, "add_tracking_id", handle_add)
     hass.services.async_register(DOMAIN, "remove_tracking_id", handle_remove)
 
-    hass.async_create_task(
-        hass.config_entries.async_forward_entry_setup(entry, "sensor")
-    )
+    await hass.config_entries.async_forward_entry_setup(entry, "sensor")
     return True
 
 
