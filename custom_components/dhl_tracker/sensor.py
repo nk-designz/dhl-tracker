@@ -60,3 +60,13 @@ async def async_setup_entry(
     hass.services.async_register(DOMAIN, "add_tracking_id", handle_add)
     hass.services.async_register(DOMAIN, "remove_tracking_id", handle_remove)
 
+class DHLTrackingSensor(SensorEntity):
+    def __init__(self, tracking_id: str):
+        self._tracking_id = tracking_id
+        self._attr_unique_id = f"dhl_{tracking_id}"
+        self._attr_name = f"DHL Package {tracking_id[-4:]}"
+        self._attr_native_value = "unknown"
+
+    async def async_update(self):
+        # TODO: Implement DHL API call and update state
+        self._attr_native_value = "in_transit"
