@@ -1,0 +1,15 @@
+{
+  "name": "DHL Tracker",
+  "country": "de",
+  "resources": [
+    {
+      "type": "module",
+      "url": "/local/community/dhl-tracker-card/dhl-tracker-card.js"
+    }
+  ],
+  "domains": ["sensor"],
+  "render_readme": true,
+  "iot_class": "cloud_polling",
+  "integration_type": "integration",
+  "codeowners": ["@nk-designz"]
+}

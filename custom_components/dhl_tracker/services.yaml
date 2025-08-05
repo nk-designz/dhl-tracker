@@ -1,0 +1,14 @@
+---
+add_tracking_id:
+  description: "Add a DHL tracking number"
+  fields:
+    tracking_id:
+      description: "The DHL tracking number"
+      example: "JVGL0123456789"
+
+remove_tracking_id:
+  description: "Remove a DHL tracking number"
+  fields:
+    tracking_id:
+      description: "The DHL tracking number"
+      example: "JVGL0123456789"
