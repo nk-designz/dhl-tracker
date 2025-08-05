@@ -40,9 +40,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.services.async_register(DOMAIN, "add_tracking_id", handle_add)
     hass.services.async_register(DOMAIN, "remove_tracking_id", handle_remove)
 
-    await hass.config_entries.async_forward_entry_setups(hass, entry, ["sensor"])
+    await hass.config_entries.async_forward_entry_setups(entry, ["sensor"])
     return True
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
-    return await hass.config_entries.async_unload_entries(hass, entry, ["sensor"])
+    return await hass.config_entries.async_unload_entries(entry, ["sensor"])
