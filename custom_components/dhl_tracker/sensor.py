@@ -1,61 +1,62 @@
-from homeassistant.helpers.entity import Entity
+import logging
+from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.storage import Store
-from .const import DOMAIN
+from homeassistant.components.sensor import SensorEntity
+from homeassistant.helpers.typing import ConfigType
 
-import aiohttp
+from .const import DOMAIN, STORAGE_KEY, STORAGE_VERSION
 
-async def async_setup_entry(hass, config_entry, async_add_entities):
-    store = Store(hass, 1, f"{DOMAIN}_data")
-    data = await store.async_load() or {"tracking_ids": []}
+_LOGGER = logging.getLogger(__name__)
+
+
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback
+) -> None:
+    """Set up DHL Tracker sensor entities from config entry."""
+    store = Store(hass, STORAGE_VERSION, STORAGE_KEY)
+    data = await store.async_load() or {}
     tracking_ids = data.get("tracking_ids", [])
-    api_key = config_entry.data.get("api_key")
 
-    entities = [DHLTrackerSensor(tid, api_key) for tid in tracking_ids]
-    async_add_entities(entities)
+    # Create sensors from stored tracking IDs
+    sensors = [DHLTrackingSensor(tracking_id) for tracking_id in tracking_ids]
+    async_add_entities(sensors)
 
+    async def modify_tracking_ids(add: bool, tracking_id: str):
+        """Add or remove tracking IDs, persist them, and create/remove sensors."""
+        data = await store.async_load() or {}
+        tracking_ids = data.get("tracking_ids", [])
 
-class DHLTrackerSensor(Entity):
-    def __init__(self, tracking_id, api_key):
-        self._tracking_id = tracking_id
-        self._api_key = api_key
-        self._state = "unknown"
-        self._attrs = {}
+        if add and tracking_id not in tracking_ids:
+            tracking_ids.append(tracking_id)
+            await store.async_save({"tracking_ids": tracking_ids})
+            async_add_entities([DHLTrackingSensor(tracking_id)])
+            _LOGGER.info("Added DHL tracking ID: %s", tracking_id)
 
-    @property
-    def name(self):
-        return f"DHL {self._tracking_id}"
+        elif not add and tracking_id in tracking_ids:
+            tracking_ids.remove(tracking_id)
+            await store.async_save({"tracking_ids": tracking_ids})
+            _LOGGER.info("Removed DHL tracking ID: %s", tracking_id)
+            # Note: Sensor entity removal not handled here.
 
-    @property
-    def unique_id(self):
-        return f"dhl_{self._tracking_id.lower()}"
+    async def handle_add(call: ServiceCall):
+        tracking_id = call.data.get("tracking_id")
+        if tracking_id:
+            await modify_tracking_ids(True, tracking_id)
+        else:
+            _LOGGER.warning("No tracking_id provided to add_tracking_id service")
 
-    @property
-    def state(self):
-        return self._state
+    async def handle_remove(call: ServiceCall):
+        tracking_id = call.data.get("tracking_id")
+        if tracking_id:
+            await modify_tracking_ids(False, tracking_id)
+        else:
+            _LOGGER.warning("No tracking_id provided to remove_tracking_id service")
 
-    @property
-    def extra_state_attributes(self):
-        return self._attrs
+    # Register the services
+    hass.services.async_register(DOMAIN, "add_tracking_id", handle_add)
+    hass.services.async_register(DOMAIN, "remove_tracking_id", handle_remove)
 
-    async def async_update(self):
-        url = f"https://api-eu.dhl.com/track/shipments?trackingNumber={self._tracking_id}"
-        headers = {"DHL-API-Key": self._api_key}
-
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url, headers=headers, timeout=10) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        shipment = data.get("shipments", [{}])[0]
-                        status = shipment.get("status", {}).get("statusCode", "unknown")
-                        eta = shipment.get("estimatedTimeOfDelivery", "")
-                        self._state = status
-                        self._attrs = {
-                            "eta": eta,
-                            "tracking_number": self._tracking_id
-                        }
-                    else:
-                        self._state = f"error {response.status}"
-        except Exception as e:
-            self._state = "error"
-            self._attrs = {"error": str(e)}
