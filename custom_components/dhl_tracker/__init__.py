@@ -2,8 +2,6 @@ from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.typing import ConfigType
-from homeassistant.helpers.discovery import async_load_platform
-
 from .const import DOMAIN, STORAGE_KEY, STORAGE_VERSION
 
 import json
@@ -11,12 +9,10 @@ import logging
 
 _LOGGER = logging.getLogger(__name__)
 
-
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
-    """Set up the DHL Tracker component (non-config-entry)."""
+    """Set up DHL Tracker component."""
     _LOGGER.debug("DHL Tracker basic setup complete")
     return True
-
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up DHL Tracker from a config entry."""
@@ -34,9 +30,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await store.async_save({"tracking_ids": tracking_ids})
 
     async def handle_add(call: ServiceCall):
+        _LOGGER.info(f"Adding DHL tracking ID: {call.data['tracking_id']}")
         await modify_tracking_ids(True, call.data["tracking_id"])
 
     async def handle_remove(call: ServiceCall):
+        _LOGGER.info(f"Removing DHL tracking ID: {call.data['tracking_id']}")
         await modify_tracking_ids(False, call.data["tracking_id"])
 
     hass.services.async_register(DOMAIN, "add_tracking_id", handle_add)
@@ -44,7 +42,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     await hass.config_entries.async_forward_entry_setup(entry, "sensor")
     return True
-
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
