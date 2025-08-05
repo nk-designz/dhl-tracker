@@ -1,9 +1,25 @@
 from homeassistant.core import HomeAssistant, ServiceCall
-from .const import DOMAIN, STORAGE_KEY, STORAGE_VERSION
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.storage import Store
-import json
+from homeassistant.helpers.typing import ConfigType
+from homeassistant.helpers.discovery import async_load_platform
 
-async def async_setup(hass: HomeAssistant, config: dict):
+from .const import DOMAIN, STORAGE_KEY, STORAGE_VERSION
+
+import json
+import logging
+
+_LOGGER = logging.getLogger(__name__)
+
+
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    """Set up the DHL Tracker component (non-config-entry)."""
+    _LOGGER.debug("DHL Tracker basic setup complete")
+    return True
+
+
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Set up DHL Tracker from a config entry."""
     store = Store(hass, STORAGE_VERSION, STORAGE_KEY)
     if (existing := await store.async_load()) is None:
         await store.async_save({"tracking_ids": []})
@@ -18,22 +34,22 @@ async def async_setup(hass: HomeAssistant, config: dict):
         await store.async_save({"tracking_ids": tracking_ids})
 
     async def handle_add(call: ServiceCall):
+        _LOGGER.info(f"Adding DHL tracking ID: {call.data['tracking_id']}")
         await modify_tracking_ids(True, call.data["tracking_id"])
 
     async def handle_remove(call: ServiceCall):
+        _LOGGER.info(f"Removing DHL tracking ID: {call.data['tracking_id']}")
         await modify_tracking_ids(False, call.data["tracking_id"])
 
     hass.services.async_register(DOMAIN, "add_tracking_id", handle_add)
     hass.services.async_register(DOMAIN, "remove_tracking_id", handle_remove)
-    return True
 
-async def async_setup_entry(hass: HomeAssistant, entry):
-    """Set up DHL Tracker from a config entry."""
     hass.async_create_task(
         hass.config_entries.async_forward_entry_setup(entry, "sensor")
     )
     return True
 
-async def async_unload_entry(hass: HomeAssistant, entry):
+
+async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     return await hass.config_entries.async_forward_entry_unload(entry, "sensor")
