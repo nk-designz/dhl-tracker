@@ -1,10 +1,11 @@
 from homeassistant.helpers.entity import Entity
+from homeassistant.helpers.storage import Store
 from .const import DOMAIN
 
 import aiohttp
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
-    store = hass.helpers.storage.Store(1, f"{DOMAIN}_data")
+    store = Store(hass, 1, f"{DOMAIN}_data")
     data = await store.async_load() or {"tracking_ids": []}
     tracking_ids = data.get("tracking_ids", [])
     api_key = config_entry.data.get("api_key")
