@@ -2,7 +2,6 @@ from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.typing import ConfigType
-from homeassistant.config_entries import async_forward_entry_setups, async_unload_entries
 from .const import DOMAIN, STORAGE_KEY, STORAGE_VERSION
 
 import json
