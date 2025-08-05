@@ -2,6 +2,7 @@ from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.typing import ConfigType
+from homeassistant.config_entries import async_forward_entry_setups, async_unload_entries
 from .const import DOMAIN, STORAGE_KEY, STORAGE_VERSION
 
 import json
@@ -40,9 +41,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.services.async_register(DOMAIN, "add_tracking_id", handle_add)
     hass.services.async_register(DOMAIN, "remove_tracking_id", handle_remove)
 
-    await hass.config_entries.async_forward_entry_setups(entry, "sensor")
+    await async_forward_entry_setups(hass, entry, ["sensor"])
     return True
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
-    return await hass.config_entries.async_forward_entry_unload(entry, "sensor")
+    return await async_unload_entries(hass, entry, ["sensor"])
