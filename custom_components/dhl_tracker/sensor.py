@@ -15,7 +15,7 @@ from .const import DOMAIN, STORAGE_KEY, STORAGE_VERSION, CONF_API_KEY
 _LOGGER = logging.getLogger(__name__)
 SCAN_INTERVAL = timedelta(minutes=15)
 
-ENTITY_REGISTRY = {}  # For tracking sensor instances
+ENTITY_REGISTRY = {}
 
 
 async def async_setup_entry(
@@ -23,8 +23,6 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback
 ) -> None:
-    """Set up DHL tracking sensors."""
-
     api_key = entry.data.get(CONF_API_KEY)
     store = Store(hass, STORAGE_VERSION, STORAGE_KEY)
     data = await store.async_load() or {}
@@ -78,12 +76,10 @@ async def async_setup_entry(
             _LOGGER.warning("No tracking_id provided")
 
     async def handle_force_update(call: ServiceCall):
-        """Manually refresh tracking data."""
         await coordinator.async_request_refresh()
         _LOGGER.info("Manual update triggered")
 
     async def handle_remove_entity(call: ServiceCall):
-        """Remove an entity completely from Home Assistant."""
         tracking_id = call.data.get("tracking_id")
         if not tracking_id:
             _LOGGER.warning("No tracking_id provided to remove_entity")
@@ -97,7 +93,6 @@ async def async_setup_entry(
         else:
             _LOGGER.warning("Entity %s not found in registry", entity_id)
 
-    # Register services
     hass.services.async_register(DOMAIN, "add_tracking_id", handle_add)
     hass.services.async_register(DOMAIN, "remove_tracking_id", handle_remove)
     hass.services.async_register(DOMAIN, "update", handle_force_update)
@@ -145,7 +140,6 @@ class DHLTrackerCoordinator(DataUpdateCoordinator):
         await self.async_request_refresh()
 
     async def _async_update_data(self):
-        """Fetch tracking info from DHL."""
         result = {}
 
         for tracking_id in self.tracking_ids:
@@ -164,24 +158,42 @@ class DHLTrackerCoordinator(DataUpdateCoordinator):
                 shipments = response.get("shipments", [])
                 if shipments:
                     latest = shipments[0]
-                    status = latest.get("status", {}).get("statusCode", "unknown")
+                    status_info = latest.get("status", {})
+                    status = status_info.get("statusCode", "unknown")
+                    description = status_info.get("description", "No description")
+                    timestamp = status_info.get("timestamp")
+
                     result[tracking_id] = {
                         "status": status,
-                        "description": latest.get("status", {}).get("status"),
+                        "description": description,
                         "origin": latest.get("origin", {}).get("address", {}).get("addressLocality"),
                         "destination": latest.get("destination", {}).get("address", {}).get("addressLocality"),
                         "estimated_delivery": latest.get("estimatedTimeOfDelivery"),
                         "tracking_id": tracking_id,
+                        "url": latest.get("serviceUrl"),
+                        "last_updated": timestamp,
                     }
+
+                    _LOGGER.info("Updated tracking ID %s: %s - %s", tracking_id, status, description)
+
                 else:
                     result[tracking_id] = {
                         "status": "not_found",
                         "tracking_id": tracking_id,
-                        "description": "No shipment found"
+                        "description": "No shipment found",
+                        "last_updated": None,
+                        "url": f"https://www.dhl.de/en/privatkunden.html?piececode={tracking_id}",
                     }
+                    _LOGGER.warning("Tracking ID %s not found in DHL API", tracking_id)
 
             except Exception as e:
                 _LOGGER.error("Failed to fetch tracking info for %s: %s", tracking_id, e)
-                result[tracking_id] = {"status": "error", "tracking_id": tracking_id}
+                result[tracking_id] = {
+                    "status": "error",
+                    "tracking_id": tracking_id,
+                    "description": str(e),
+                    "last_updated": None,
+                    "url": f"https://www.dhl.de/en/privatkunden.html?piececode={tracking_id}",
+                }
 
         return result
