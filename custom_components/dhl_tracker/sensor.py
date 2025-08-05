@@ -5,12 +5,10 @@ from datetime import timedelta
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import (
-    DataUpdateCoordinator,
-    UpdateFailed
-)
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.helpers.storage import Store
 from homeassistant.components.sensor import SensorEntity
+from homeassistant.helpers.entity_registry import async_get as async_get_entity_registry
 
 from .const import DOMAIN, STORAGE_KEY, STORAGE_VERSION, CONF_API_KEY
 
@@ -79,8 +77,32 @@ async def async_setup_entry(
         else:
             _LOGGER.warning("No tracking_id provided")
 
+    async def handle_force_update(call: ServiceCall):
+        """Manually refresh tracking data."""
+        await coordinator.async_request_refresh()
+        _LOGGER.info("Manual update triggered")
+
+    async def handle_remove_entity(call: ServiceCall):
+        """Remove an entity completely from Home Assistant."""
+        tracking_id = call.data.get("tracking_id")
+        if not tracking_id:
+            _LOGGER.warning("No tracking_id provided to remove_entity")
+            return
+
+        entity_id = f"sensor.dhl_package_{tracking_id[-4:]}"
+        registry = await async_get_entity_registry(hass)
+        if entity_id in registry.entities:
+            registry.async_remove(entity_id)
+            _LOGGER.info("Entity %s removed from registry", entity_id)
+        else:
+            _LOGGER.warning("Entity %s not found in registry", entity_id)
+
+    # Register services
     hass.services.async_register(DOMAIN, "add_tracking_id", handle_add)
     hass.services.async_register(DOMAIN, "remove_tracking_id", handle_remove)
+    hass.services.async_register(DOMAIN, "update", handle_force_update)
+    hass.services.async_register(DOMAIN, "remove_entity", handle_remove_entity)
+
 
 class DHLTrackingSensor(SensorEntity):
     def __init__(self, tracking_id: str, coordinator: "DHLTrackerCoordinator"):
@@ -104,6 +126,7 @@ class DHLTrackingSensor(SensorEntity):
     @property
     def extra_state_attributes(self):
         return self.coordinator.data.get(self._tracking_id, {})
+
 
 class DHLTrackerCoordinator(DataUpdateCoordinator):
     def __init__(self, hass: HomeAssistant, tracking_ids: list[str], api_key: str):
@@ -151,12 +174,14 @@ class DHLTrackerCoordinator(DataUpdateCoordinator):
                         "tracking_id": tracking_id,
                     }
                 else:
-                    result[tracking_id] = {"status": "not_found", "tracking_id": tracking_id}
+                    result[tracking_id] = {
+                        "status": "not_found",
+                        "tracking_id": tracking_id,
+                        "description": "No shipment found"
+                    }
 
             except Exception as e:
                 _LOGGER.error("Failed to fetch tracking info for %s: %s", tracking_id, e)
                 result[tracking_id] = {"status": "error", "tracking_id": tracking_id}
 
         return result
-
-
