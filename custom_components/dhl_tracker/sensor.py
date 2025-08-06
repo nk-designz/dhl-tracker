@@ -8,7 +8,6 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.helpers.storage import Store
 from homeassistant.components.sensor import SensorEntity
-from homeassistant.helpers.entity_registry import async_get as async_get_entity_registry
 
 from .const import DOMAIN, STORAGE_KEY, STORAGE_VERSION, CONF_API_KEY
 
@@ -81,17 +80,10 @@ async def async_setup_entry(
 
     async def handle_remove_entity(call: ServiceCall):
         tracking_id = call.data.get("tracking_id")
-        if not tracking_id:
-            _LOGGER.warning("No tracking_id provided to remove_entity")
-            return
-
-        entity_id = f"sensor.dhl_package_{tracking_id[-4:]}"
-        registry = await async_get_entity_registry(hass)
-        if entity_id in registry.entities:
-            registry.async_remove(entity_id)
-            _LOGGER.info("Entity %s removed from registry", entity_id)
+        if tracking_id:
+            await modify_tracking_ids(False, tracking_id)
         else:
-            _LOGGER.warning("Entity %s not found in registry", entity_id)
+            _LOGGER.warning("No tracking_id provided to remove_entity")
 
     hass.services.async_register(DOMAIN, "add_tracking_id", handle_add)
     hass.services.async_register(DOMAIN, "remove_tracking_id", handle_remove)
