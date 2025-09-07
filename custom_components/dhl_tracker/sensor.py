@@ -93,6 +93,7 @@ async def async_setup_entry(
 
 class DHLTrackingSensor(SensorEntity):
     def __init__(self, tracking_id: str, coordinator: "DHLTrackerCoordinator"):
+        self._tracking_id = str(tracking_id)
         self._tracking_id = tracking_id
         self.coordinator = coordinator
         self._attr_unique_id = f"dhl_{tracking_id}"
